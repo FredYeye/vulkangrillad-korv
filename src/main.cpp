@@ -22,7 +22,7 @@ int main()
 	vulkan.CreateSurface(window);
 	vulkan.PickPhysicalDevice();
 	vulkan.CreateLogicalDevice();
-	vulkan.CreateSwapChain();
+	vulkan.CreateSwapchain();
 
 	while(!glfwWindowShouldClose(window))
 	{

@@ -131,31 +131,17 @@ void Vulkan::CreateLogicalDevice()
 {
 	uint32_t queueFamilyCount;
 	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, 0);
+
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
 
-	int graphicsFamily = -1;
-	// int presentFamily = -1; //find a queue with both graphics and present for now
-	for(int x = 0; x < queueFamilyCount; ++x)
-	{
-		VkBool32 presentSupport;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, x, surface, &presentSupport);
-		if(queueFamilies[x].queueCount > 0 && queueFamilies[x].queueFlags & VK_QUEUE_GRAPHICS_BIT && presentSupport)
-		{
-			graphicsFamily = x;
-			break;
-		}
-	}
-	if(graphicsFamily == -1)
-	{
-		std::cout << "Didn't find a queue family with graphics operations and presentation support!\n";
-	}
+	int index = FindQueueFamily(physicalDevice);
 
 	//
 	float queuePriority = 1.0f;
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = graphicsFamily;
+	queueCreateInfo.queueFamilyIndex = index;
 	queueCreateInfo.queueCount = 1;
 	queueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -180,21 +166,60 @@ void Vulkan::CreateLogicalDevice()
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, 0, &device);
 
 	VkQueue graphicsQueue;
-	vkGetDeviceQueue(device, graphicsFamily, 0, &graphicsQueue);
+	vkGetDeviceQueue(device, index, 0, &graphicsQueue);
 
 
 	//
 	VkQueue presentQueue;
-	vkGetDeviceQueue(device, graphicsFamily, 0, &presentQueue);
+	vkGetDeviceQueue(device, index, 0, &presentQueue);
 }
 
 
-void Vulkan::CreateSwapChain()
+void Vulkan::CreateSwapchain()
 {
-	SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(physicalDevice);
-	VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
+	SwapchainSupportDetails swapchainSupport = QuerySwapchainSupport(physicalDevice);
 
-	VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
+	VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapchainSupport.formats);
+	VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapchainSupport.presentModes);
+	VkExtent2D extent = ChooseSwapExtent(swapchainSupport.capabilities);
+
+	// std::cout << "min: " << swapchainSupport.capabilities.minImageCount
+			  // << " max: " << swapchainSupport.capabilities.maxImageCount << "\n";
+	uint32_t imageCount = swapchainSupport.capabilities.minImageCount;
+	if(swapchainSupport.capabilities.maxImageCount > swapchainSupport.capabilities.minImageCount)
+	{
+		++imageCount;
+	}
+
+	VkSwapchainCreateInfoKHR createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	createInfo.surface = surface;
+	createInfo.minImageCount = imageCount;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageExtent = extent;
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	int index = FindQueueFamily(physicalDevice);
+	// if (indices.graphicsFamily != indices.presentFamily) //use this later
+	createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	createInfo.queueFamilyIndexCount = 0;
+	createInfo.pQueueFamilyIndices = 0;
+
+	createInfo.preTransform = swapchainSupport.capabilities.currentTransform;
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.presentMode = presentMode;
+	createInfo.clipped = VK_TRUE;
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	vkCreateSwapchainKHR(device, &createInfo, 0, &swapchain);
+
+	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, 0);
+	swapchainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
+	swapchainImageFormat = surfaceFormat.format;
+	swapchainExtent = extent;
 }
 
 
@@ -229,6 +254,10 @@ void Vulkan::Destroy()
 		}
 	}
 
+	if(swapchain)
+	{
+		vkDestroySwapchainKHR(device, swapchain, 0);
+	}
 	if(surface)
 	{
 		vkDestroySurfaceKHR(instance, surface, 0);
@@ -280,15 +309,17 @@ bool Vulkan::IsDeviceSuitable(VkPhysicalDevice physDevice)
 		// }
 	// }
 
+	int suitableQueue = FindQueueFamily(physDevice);
+
 	bool extensionsSupported = CheckDeviceExtensionSupport(physDevice);
-	bool swapChainGood = false;
+	bool swapchainGood = false;
 	if(extensionsSupported)
 	{
-		SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(physDevice);
-		swapChainGood = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+		SwapchainSupportDetails swapchainSupport = QuerySwapchainSupport(physDevice);
+		swapchainGood = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
 	}
 
-	return extensionsSupported && swapChainGood;
+	return suitableQueue != -1 && extensionsSupported && swapchainGood;
 }
 
 
@@ -343,9 +374,9 @@ bool Vulkan::CheckValidationLayerSupport()
 }
 
 
-SwapChainSupportDetails Vulkan::QuerySwapChainSupport(VkPhysicalDevice physDevice)
+SwapchainSupportDetails Vulkan::QuerySwapchainSupport(VkPhysicalDevice physDevice)
 {
-	SwapChainSupportDetails details;
+	SwapchainSupportDetails details;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &details.capabilities);
 
 	uint32_t formatCount;
@@ -386,16 +417,55 @@ VkSurfaceFormatKHR Vulkan::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFo
 
 VkPresentModeKHR Vulkan::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes)
 {
-	std::array<std::string, 4> presentModeNames
-	{
-		"VK_PRESENT_MODE_IMMEDIATE_KHR", "VK_PRESENT_MODE_MAILBOX_KHR",
-		"VK_PRESENT_MODE_FIFO_KHR", "VK_PRESENT_MODE_FIFO_RELAXED_KHR"
-	};
+	// const std::array<std::string, 4> presentModeNames
+	// {
+		// "VK_PRESENT_MODE_IMMEDIATE_KHR", "VK_PRESENT_MODE_MAILBOX_KHR",
+		// "VK_PRESENT_MODE_FIFO_KHR", "VK_PRESENT_MODE_FIFO_RELAXED_KHR"
+	// };
+	// std::cout << "presentation engine modes:\n";
+	// for(const auto &v : availablePresentModes)
+	// {
+		// std::cout << "  " << presentModeNames[v] << "\n";
+	// }
 
-	std::cout << "presentation engine modes:\n";
-	for(const auto &v : availablePresentModes)
-	{
-		std::cout << "  " << presentModeNames[v] << "\n";
-	}
 	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+
+VkExtent2D Vulkan::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities)
+{
+	// std::cout << capabilities.currentExtent.width << " " << capabilities.currentExtent.height << "\n";
+	// std::cout << capabilities.maxImageExtent.width << " " << capabilities.maxImageExtent.height << "\n";
+	if(capabilities.currentExtent.width != 0xFFFFFFFF)
+	{
+		return capabilities.currentExtent;
+	}
+	else
+	{
+		return {800,600};
+	}
+}
+
+int Vulkan::FindQueueFamily(VkPhysicalDevice physDevice)
+{
+	uint32_t queueFamilyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueFamilyCount, 0);
+
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueFamilyCount, queueFamilies.data());
+
+	int graphicsFamily = -1;
+	// int presentFamily = -1; //find a queue with both graphics and present for now
+	for(int x = 0; x < queueFamilyCount; ++x)
+	{
+		VkBool32 presentSupport;
+		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, x, surface, &presentSupport);
+		if(queueFamilies[x].queueCount > 0 && queueFamilies[x].queueFlags & VK_QUEUE_GRAPHICS_BIT && presentSupport)
+		{
+			graphicsFamily = x;
+			break;
+		}
+	}
+
+	return graphicsFamily;
 }
