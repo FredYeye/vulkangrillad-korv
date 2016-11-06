@@ -20,6 +20,9 @@ class Vulkan
 		void PickPhysicalDevice();
 		void CreateLogicalDevice();
 		void CreateSwapchain();
+		void CreateImageViews();
+		void CreateRenderPass();
+		void CreateGraphicsPipeline();
 
 		void PrintAvailableExtensions();
 		void Destroy();
@@ -34,6 +37,7 @@ class Vulkan
 		VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
 		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 		int FindQueueFamily(VkPhysicalDevice physDevice);
+		void CreateShaderModule(const std::vector<uint8_t> &code, VkShaderModule &module);
 
 		VkInstance instance = 0;
 		VkDebugReportCallbackEXT callback = 0;
@@ -45,7 +49,11 @@ class Vulkan
 		std::vector<VkImage> swapchainImages;
 		VkFormat swapchainImageFormat;
 		VkExtent2D swapchainExtent;
+		std::vector<VkImageView> swapchainImageViews;
+		VkRenderPass renderPass;
+		VkPipelineLayout pipelineLayout;
+		VkPipeline graphicsPipeline;
 
 		const std::vector<const char*> validationLayers{"VK_LAYER_LUNARG_standard_validation"};
-		const std::vector<const char*> deviceExtensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME}; //glfw requires khr_swapchain
+		const std::vector<const char*> deviceExtensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME}; //glfw requires khr_swapchain anyway
 };

@@ -31,11 +31,13 @@ if(WIN32)
 	set(source_files
 		src/main.cpp
 		src/vulkan.cpp
+		src/file.cpp
 		)
 
 	set(header_files
 		src/main.hpp
 		src/vulkan.hpp
+		src/file.hpp
 		)
 
 	add_executable(${project_name} ${header_files} ${source_files})

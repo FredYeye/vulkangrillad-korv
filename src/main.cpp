@@ -23,6 +23,9 @@ int main()
 	vulkan.PickPhysicalDevice();
 	vulkan.CreateLogicalDevice();
 	vulkan.CreateSwapchain();
+	vulkan.CreateImageViews();
+	vulkan.CreateRenderPass();
+	vulkan.CreateGraphicsPipeline();
 
 	while(!glfwWindowShouldClose(window))
 	{
