@@ -26,10 +26,15 @@ int main()
 	vulkan.CreateImageViews();
 	vulkan.CreateRenderPass();
 	vulkan.CreateGraphicsPipeline();
+	vulkan.CreateFramebuffers();
+	vulkan.CreateCommandPool();
+	vulkan.CreateCommandBuffers();
+	vulkan.CreateSemaphores();
 
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
+		vulkan.DrawFrame();
 	}
 
 	vulkan.Destroy();

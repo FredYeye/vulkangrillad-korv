@@ -414,6 +414,97 @@ void Vulkan::CreateGraphicsPipeline()
 }
 
 
+void Vulkan::CreateFramebuffers()
+{
+	swapchainFramebuffers.resize(swapchainImageViews.size());
+
+	for(int x = 0; x < swapchainImageViews.size(); ++x)
+	{
+		std::array<VkImageView, 1> attachments{swapchainImageViews[x]};
+
+		VkFramebufferCreateInfo framebufferInfo = {};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments.data();
+		framebufferInfo.width = swapchainExtent.width;
+		framebufferInfo.height = swapchainExtent.height;
+		framebufferInfo.layers = 1;
+
+		vkCreateFramebuffer(device, &framebufferInfo, 0, &swapchainFramebuffers[x]);
+	}
+}
+
+
+void Vulkan::CreateCommandPool()
+{
+	int index = FindQueueFamily(physicalDevice);
+
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = index;
+	poolInfo.flags = 0;
+
+	vkCreateCommandPool(device, &poolInfo, 0, &commandPool);
+}
+
+
+void Vulkan::CreateCommandBuffers()
+{
+	commandBuffers.resize(swapchainFramebuffers.size());
+
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = commandBuffers.size();
+
+	vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data());
+
+	for(int x = 0; x < commandBuffers.size(); ++x)
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		beginInfo.pInheritanceInfo = 0;
+
+		vkBeginCommandBuffer(commandBuffers[x], &beginInfo);
+
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = swapchainFramebuffers[x];
+		renderPassInfo.renderArea.offset = {0, 0};
+		renderPassInfo.renderArea.extent = swapchainExtent;
+		VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+		renderPassInfo.clearValueCount = 1;
+		renderPassInfo.pClearValues = &clearColor;
+
+		vkCmdBeginRenderPass(commandBuffers[x], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(commandBuffers[x], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdDraw(commandBuffers[x], 3, 1, 0, 0);
+		vkCmdEndRenderPass(commandBuffers[x]);
+
+		vkEndCommandBuffer(commandBuffers[x]);
+	}
+}
+
+
+void Vulkan::CreateSemaphores()
+{
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	vkCreateSemaphore(device, &semaphoreInfo, 0, &imageAvailable);
+	vkCreateSemaphore(device, &semaphoreInfo, 0, &renderFinished);
+}
+
+
+void Vulkan::DrawFrame()
+{
+	
+}
+
+
 void Vulkan::PrintAvailableExtensions()
 {
 	uint32_t availableExtensionCount;
@@ -445,6 +536,25 @@ void Vulkan::Destroy()
 		}
 	}
 
+	if(imageAvailable)
+	{
+		vkDestroySemaphore(device, imageAvailable, 0);
+	}
+	if(renderFinished)
+	{
+		vkDestroySemaphore(device, renderFinished, 0);
+	}
+	if(commandPool)
+	{
+		vkDestroyCommandPool(device, commandPool, 0);
+	}
+	for(auto &v : swapchainFramebuffers)
+	{
+		if(v)
+		{
+			vkDestroyFramebuffer(device, v, 0);
+		}
+	}
 	if(graphicsPipeline)
 	{
 		vkDestroyPipeline(device, graphicsPipeline, 0);

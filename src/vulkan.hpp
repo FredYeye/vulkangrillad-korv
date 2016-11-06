@@ -23,6 +23,12 @@ class Vulkan
 		void CreateImageViews();
 		void CreateRenderPass();
 		void CreateGraphicsPipeline();
+		void CreateFramebuffers();
+		void CreateCommandPool();
+		void CreateCommandBuffers();
+		void CreateSemaphores();
+
+		void DrawFrame();
 
 		void PrintAvailableExtensions();
 		void Destroy();
@@ -53,6 +59,11 @@ class Vulkan
 		VkRenderPass renderPass;
 		VkPipelineLayout pipelineLayout;
 		VkPipeline graphicsPipeline;
+		std::vector<VkFramebuffer> swapchainFramebuffers;
+		VkCommandPool commandPool;
+		std::vector<VkCommandBuffer> commandBuffers;
+
+		VkSemaphore imageAvailable, renderFinished;
 
 		const std::vector<const char*> validationLayers{"VK_LAYER_LUNARG_standard_validation"};
 		const std::vector<const char*> deviceExtensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME}; //glfw requires khr_swapchain anyway
