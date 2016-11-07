@@ -166,12 +166,7 @@ void Vulkan::CreateLogicalDevice()
 
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, 0, &device);
 
-	VkQueue graphicsQueue;
 	vkGetDeviceQueue(device, index, 0, &graphicsQueue);
-
-
-	//
-	VkQueue presentQueue;
 	vkGetDeviceQueue(device, index, 0, &presentQueue);
 }
 
@@ -277,6 +272,17 @@ void Vulkan::CreateRenderPass()
 	renderPassInfo.pAttachments = &colorAttachment;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subPass;
+
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &dependency;
 
 	vkCreateRenderPass(device, &renderPassInfo, 0, &renderPass);
 }
@@ -501,7 +507,37 @@ void Vulkan::CreateSemaphores()
 
 void Vulkan::DrawFrame()
 {
-	
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(device, swapchain, 0xFFFFFFFFFFFFFFFF, imageAvailable, VK_NULL_HANDLE, &imageIndex);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	std::array<VkSemaphore, 1> waitSemaphores{imageAvailable};
+	std::array<VkPipelineStageFlags, 1> waitStages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores.data();
+	submitInfo.pWaitDstStageMask = waitStages.data();
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+	std::array<VkSemaphore, 1> signalSemaphores{renderFinished};
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores.data();
+
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores.data();
+
+	std::array<VkSwapchainKHR, 1> swapchains{swapchain};
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = swapchains.data();
+	presentInfo.pImageIndices = &imageIndex;
+
+	vkQueuePresentKHR(presentQueue, &presentInfo);
 }
 
 
@@ -523,6 +559,8 @@ void Vulkan::PrintAvailableExtensions()
 
 void Vulkan::Destroy()
 {
+	vkDeviceWaitIdle(device);
+
 	if(enableValidationLayers)
 	{
 		PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT = PFN_vkDestroyDebugReportCallbackEXT(glfwGetInstanceProcAddress(instance, "vkDestroyDebugReportCallbackEXT"));

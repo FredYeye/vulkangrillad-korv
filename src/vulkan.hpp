@@ -51,6 +51,7 @@ class Vulkan
 		std::vector<VkPhysicalDevice> devices;
 		VkPhysicalDevice physicalDevice = 0;
 		VkDevice device = 0;
+		VkQueue graphicsQueue, presentQueue;
 		VkSwapchainKHR swapchain = 0;
 		std::vector<VkImage> swapchainImages;
 		VkFormat swapchainImageFormat;
