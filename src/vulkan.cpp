@@ -1,3 +1,5 @@
+// https://www.khronos.org/registry/vulkan/specs/1.0/man/html/vkCmdCopyImage.html
+
 #include <iostream>
 #include <array>
 #include <vector>
@@ -113,7 +115,8 @@ void Vulkan::PickPhysicalDevice()
 		std::cout << "Found no GPU with Vulkan support!\n";
 		// exit(-1);
 	}
-	devices.resize(deviceCount);
+
+	std::vector<VkPhysicalDevice> devices(deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
 	if(IsDeviceSuitable(devices[0]))
@@ -290,11 +293,10 @@ void Vulkan::CreateRenderPass()
 
 void Vulkan::CreateGraphicsPipeline()
 {
-	std::vector<uint8_t> vertShaderCode = FileToU8Vec("bin/vert.spv");
-	std::vector<uint8_t> fragShaderCode = FileToU8Vec("bin/frag.spv");
+	const std::vector<uint32_t> vertShaderCode = FileToU32Vec("bin/vert.spv");
+	const std::vector<uint32_t> fragShaderCode = FileToU32Vec("bin/frag.spv");
 
-	VkShaderModule vertShaderModule;
-	VkShaderModule fragShaderModule;
+	VkShaderModule vertShaderModule, fragShaderModule;
 	CreateShaderModule(vertShaderCode, vertShaderModule);
 	CreateShaderModule(fragShaderCode, fragShaderModule);
 
@@ -310,7 +312,7 @@ void Vulkan::CreateGraphicsPipeline()
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertShaderStageInfo, fragShaderStageInfo};
+	const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertShaderStageInfo, fragShaderStageInfo};
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -759,6 +761,15 @@ SwapchainSupportDetails Vulkan::QuerySwapchainSupport(VkPhysicalDevice physDevic
 
 VkSurfaceFormatKHR Vulkan::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats)
 {
+	if(verbose)
+	{
+		std::cout << "Available formats:\n";
+		for(const auto &v : availableFormats)
+		{
+			std::cout << "  Format: " << v.format << " Colorspace: " << v.colorSpace << "\n";
+		}
+	}
+
 	for(const auto &v : availableFormats)
 	{
 		if(v.format == VK_FORMAT_B8G8R8A8_UNORM && v.colorSpace == false)
@@ -775,16 +786,19 @@ VkSurfaceFormatKHR Vulkan::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFo
 
 VkPresentModeKHR Vulkan::ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes)
 {
-	// const std::array<std::string, 4> presentModeNames
-	// {
-		// "VK_PRESENT_MODE_IMMEDIATE_KHR", "VK_PRESENT_MODE_MAILBOX_KHR",
-		// "VK_PRESENT_MODE_FIFO_KHR", "VK_PRESENT_MODE_FIFO_RELAXED_KHR"
-	// };
-	// std::cout << "presentation engine modes:\n";
-	// for(const auto &v : availablePresentModes)
-	// {
-		// std::cout << "  " << presentModeNames[v] << "\n";
-	// }
+	if(verbose)
+	{
+		const std::array<std::string, 4> presentModeNames
+		{
+			"VK_PRESENT_MODE_IMMEDIATE_KHR", "VK_PRESENT_MODE_MAILBOX_KHR",
+			"VK_PRESENT_MODE_FIFO_KHR", "VK_PRESENT_MODE_FIFO_RELAXED_KHR"
+		};
+		std::cout << "presentation engine modes:\n";
+		for(const auto &v : availablePresentModes)
+		{
+			std::cout << "  " << presentModeNames[v] << "\n";
+		}
+	}
 
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
@@ -829,11 +843,12 @@ int Vulkan::FindQueueFamily(VkPhysicalDevice physDevice)
 }
 
 
-void Vulkan::CreateShaderModule(const std::vector<uint8_t> &code, VkShaderModule &module)
+void Vulkan::CreateShaderModule(const std::vector<uint32_t> &code, VkShaderModule &module)
 {
 	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
+
+	createInfo.codeSize = code.size() * 4;
 	createInfo.pCode = (uint32_t*)code.data();
 
 	vkCreateShaderModule(device, &createInfo, 0, &module);

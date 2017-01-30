@@ -16,6 +16,7 @@ int main()
 	GLFWwindow* window = glfwCreateWindow(800, 600, "test", 0, 0);
 
 	Vulkan vulkan;
+	vulkan.verbose = true;
 	// vulkan.PrintAvailableExtensions();
 	vulkan.CreateInstance();
 	vulkan.SetupDebugCallback();
